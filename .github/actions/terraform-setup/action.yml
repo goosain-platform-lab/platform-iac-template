@@ -1,0 +1,95 @@
+name: terraform-setup
+description: >-
+  Shared setup for every job that talks to GitHub and HCP Terraform. Resolves
+  the environment, mints a one-hour GitHub App token for that environment's
+  org, installs the pinned Terraform version and initialises the workspace.
+
+inputs:
+  environment:
+    description: Environment name. Selects environments/<name>.tfvars and the HCP Terraform workspace github-platform-<name>.
+    required: true
+  app-client-id:
+    description: Client ID of the GitHub App to act as (reader for plan and drift, writer for apply).
+    required: true
+  app-private-key:
+    description: Private key of that GitHub App.
+    required: true
+  tf-api-token:
+    description: HCP Terraform team API token.
+    required: true
+  tf-cloud-organization:
+    description: HCP Terraform organization name.
+    required: true
+
+outputs:
+  github-org:
+    description: The GitHub org this environment manages.
+    value: ${{ steps.resolve.outputs.github-org }}
+  github-token:
+    description: GitHub App installation token for that org. Expires after one hour; masked in logs.
+    value: ${{ steps.app-token.outputs.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve environment and check inputs
+      id: resolve
+      shell: bash
+      env:
+        ENVIRONMENT: ${{ inputs.environment }}
+        APP_CLIENT_ID: ${{ inputs.app-client-id }}
+        APP_PRIVATE_KEY: ${{ inputs.app-private-key }}
+        TF_API_TOKEN: ${{ inputs.tf-api-token }}
+        TF_CLOUD_ORGANIZATION: ${{ inputs.tf-cloud-organization }}
+      run: |
+        set -euo pipefail
+        fail() { echo "::error::$1"; exit 1; }
+
+        [[ "$ENVIRONMENT" =~ ^[a-z][a-z0-9-]*$ ]] || fail "Invalid environment name '$ENVIRONMENT'."
+        tfvars="environments/${ENVIRONMENT}.tfvars"
+        [[ -f "$tfvars" ]] || fail "There is no $tfvars for environment '$ENVIRONMENT'."
+
+        org="$(sed -nE 's/^[[:space:]]*github_org[[:space:]]*=[[:space:]]*"([^"]+)".*$/\1/p' "$tfvars")"
+        [[ -n "$org" ]] || fail "github_org is not set in $tfvars."
+
+        version="$(tr -d '[:space:]' < .terraform-version)"
+        [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail ".terraform-version must hold one exact version, e.g. 1.16.5 (found '$version')."
+
+        [[ -f .terraform.lock.hcl ]] || fail ".terraform.lock.hcl is missing. Run 'terraform providers lock -platform=linux_amd64 -platform=windows_amd64 -platform=darwin_arm64' and commit the file."
+
+        [[ -n "$APP_CLIENT_ID" ]]         || fail "The GitHub App client ID is empty. Set the GH_APP_READER_CLIENT_ID / GH_APP_WRITER_CLIENT_ID repository variables."
+        [[ -n "$APP_PRIVATE_KEY" ]]       || fail "The GitHub App private key is empty. The reader key is a repository secret; the writer key is a secret on the sandbox and prod Environments."
+        [[ -n "$TF_API_TOKEN" ]]          || fail "The TF_API_TOKEN secret is empty."
+        [[ -n "$TF_CLOUD_ORGANIZATION" ]] || fail "The TF_CLOUD_ORGANIZATION repository variable is empty."
+
+        workspace="github-platform-${ENVIRONMENT}"
+        {
+          echo "github-org=$org"
+          echo "terraform-version=$version"
+        } >> "$GITHUB_OUTPUT"
+        {
+          echo "TF_CLOUD_ORGANIZATION=$TF_CLOUD_ORGANIZATION"
+          echo "TF_WORKSPACE=$workspace"
+          echo "TF_IN_AUTOMATION=1"
+          echo "TF_INPUT=0"
+        } >> "$GITHUB_ENV"
+        echo "Environment '$ENVIRONMENT': org $org, workspace $workspace, Terraform $version"
+
+    - name: Mint a GitHub App token for the environment's org
+      id: app-token
+      uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+      with:
+        client-id: ${{ inputs.app-client-id }}
+        private-key: ${{ inputs.app-private-key }}
+        owner: ${{ steps.resolve.outputs.github-org }}
+
+    - name: Install Terraform
+      uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+      with:
+        terraform_version: ${{ steps.resolve.outputs.terraform-version }}
+        cli_config_credentials_token: ${{ inputs.tf-api-token }}
+        terraform_wrapper: false
+
+    - name: terraform init
+      shell: bash
+      run: terraform init -input=false -lockfile=readonly

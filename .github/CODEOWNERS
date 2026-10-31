@@ -1,0 +1,4 @@
+# Every change to the platform needs a platform owner's review.
+# The team gets access to this repository through control_repository in
+# environments/prod.tfvars. If you copy this template, change the org name.
+* @goosain-platform-lab/platform-owners

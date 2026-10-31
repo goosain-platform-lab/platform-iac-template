@@ -1,0 +1,131 @@
+name: terraform-drift
+
+# Weekday mornings, a read-only plan against each environment. If GitHub no
+# longer matches the code (a setting changed by hand, or an apply that failed),
+# open or update a "drift" issue. When the two match again, close it.
+#
+# Uses a normal plan, not -refresh-only: -detailed-exitcode then only reports
+# real differences, not churn in computed fields such as etags.
+
+on:
+  schedule:
+    - cron: "17 4 * * 1-5" # 06:17 SAST, Monday to Friday (off the hour to dodge queue spikes)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: drift (${{ matrix.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [sandbox, prod]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up (reader App)
+        id: setup
+        uses: ./.github/actions/terraform-setup
+        with:
+          environment: ${{ matrix.environment }}
+          app-client-id: ${{ vars.GH_APP_READER_CLIENT_ID }}
+          app-private-key: ${{ secrets.GH_APP_READER_PRIVATE_KEY }}
+          tf-api-token: ${{ secrets.TF_API_TOKEN }}
+          tf-cloud-organization: ${{ vars.TF_CLOUD_ORGANIZATION }}
+
+      - name: terraform plan
+        id: plan
+        env:
+          GITHUB_TOKEN: ${{ steps.setup.outputs.github-token }}
+          TF_VAR_billing_email: ${{ secrets.ORG_BILLING_EMAIL }}
+          ENVIRONMENT: ${{ matrix.environment }}
+        run: |
+          set +e
+          terraform plan -no-color -lock-timeout=10m -detailed-exitcode \
+            -var-file="environments/${ENVIRONMENT}.tfvars" -out=tfplan > plan.log 2>&1
+          code=$?
+          set -e
+          cat plan.log
+          if [[ $code -eq 2 ]]; then terraform show -no-color tfplan > plan.txt; else cp plan.log plan.txt; fi
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Open, update or close the drift issue
+        if: steps.plan.outputs.exitcode == '0' || steps.plan.outputs.exitcode == '2'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}
+          EXITCODE: ${{ steps.plan.outputs.exitcode }}
+          GITHUB_ORG: ${{ steps.setup.outputs.github-org }}
+        with:
+          script: |
+            const fs = require('fs');
+            const env = process.env.ENVIRONMENT;
+            const drifted = process.env.EXITCODE === '2';
+            const label = 'drift';
+            const title = `Drift detected: ${env}`;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            try {
+              await github.rest.issues.getLabel({ ...context.repo, name: label });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.issues.createLabel({
+                ...context.repo, name: label, color: 'd93f0b',
+                description: 'GitHub no longer matches the platform code',
+              });
+            }
+
+            const open = await github.paginate(github.rest.issues.listForRepo, {
+              ...context.repo, state: 'open', labels: label, per_page: 100,
+            });
+            const existing = open.find((issue) => issue.title === title && !issue.pull_request);
+
+            if (drifted) {
+              let plan = fs.readFileSync('plan.txt', 'utf8');
+              if (plan.length > 60000) plan = plan.slice(0, 60000) + '\n... (truncated: see the run)';
+              const body = [
+                `GitHub no longer matches the code for **${env}** (\`${process.env.GITHUB_ORG}\`).`,
+                '',
+                'To fix it, either run **terraform-apply** by hand to put the code back, or, if the change was intended, add it to the code in a pull request.',
+                '',
+                `Last checked by [this run](${runUrl}).`,
+                '',
+                '<details><summary>Plan</summary>',
+                '',
+                '```',
+                plan,
+                '```',
+                '</details>',
+              ].join('\n');
+              if (existing) {
+                await github.rest.issues.update({ ...context.repo, issue_number: existing.number, body });
+                core.notice(`Drift still present in ${env}: issue #${existing.number} updated.`);
+              } else {
+                const { data: issue } = await github.rest.issues.create({ ...context.repo, title, body, labels: [label] });
+                core.warning(`Drift detected in ${env}: opened issue #${issue.number}.`);
+              }
+            } else if (existing) {
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: existing.number,
+                body: `Resolved: GitHub matches the code again ([run](${runUrl})).`,
+              });
+              await github.rest.issues.update({ ...context.repo, issue_number: existing.number, state: 'closed', state_reason: 'completed' });
+              core.notice(`Drift in ${env} resolved: closed issue #${existing.number}.`);
+            } else {
+              core.notice(`No drift in ${env}.`);
+            }
+
+      - name: Fail if the plan failed
+        if: steps.plan.outputs.exitcode == '1'
+        run: |
+          echo "::error::terraform plan failed for ${{ matrix.environment }}. See the plan output above."
+          exit 1

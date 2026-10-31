@@ -1,0 +1,173 @@
+name: terraform-plan
+
+# Every pull request: static checks, then a plan against each environment,
+# posted as a comment on the PR. Nothing in this workflow can change GitHub:
+# plans authenticate as the reader App, whose permissions are read-only.
+#
+# No paths filter on purpose: "checks", "plan (sandbox)" and "plan (prod)" are
+# required status checks, and a skipped workflow would leave a PR waiting forever.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read the pinned Terraform version
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < .terraform-version)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::.terraform-version must hold one exact version"; exit 1; }
+          echo "terraform=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ steps.version.outputs.terraform }}
+          terraform_wrapper: false
+
+      - uses: terraform-linters/setup-tflint@6ffdbaa3be476b3431f7275c26966ef32ff60337 # v6.3.2
+        with:
+          tflint_version: v0.65.0
+
+      - name: Formatting
+        run: terraform fmt -check -recursive -diff
+
+      - name: Initialise without the backend
+        run: terraform init -backend=false -input=false -lockfile=readonly
+
+      - name: Validate
+        run: terraform validate -no-color
+
+      - name: Lint, including naming conventions
+        run: |
+          tflint --init
+          tflint --recursive --minimum-failure-severity=notice
+
+      - name: Policy tests (sandbox config)
+        run: terraform test -no-color -var-file=environments/sandbox.tfvars
+
+      - name: Policy tests (prod config)
+        run: terraform test -no-color -var-file=environments/prod.tfvars
+
+      - name: Every action used here is allowed by the org policy
+        run: bash scripts/check-actions-allowlist.sh
+
+  plan:
+    name: plan (${{ matrix.environment }})
+    needs: checks
+    # Pull requests from forks get no secrets, so they are skipped, not failed.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [sandbox, prod]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Dependabot pull requests only see Dependabot secrets, so the bootstrap
+      # script also stores the two non-secret values there as a fallback.
+      - name: Set up (reader App)
+        id: setup
+        uses: ./.github/actions/terraform-setup
+        with:
+          environment: ${{ matrix.environment }}
+          app-client-id: ${{ vars.GH_APP_READER_CLIENT_ID || secrets.GH_APP_READER_CLIENT_ID }}
+          app-private-key: ${{ secrets.GH_APP_READER_PRIVATE_KEY }}
+          tf-api-token: ${{ secrets.TF_API_TOKEN }}
+          tf-cloud-organization: ${{ vars.TF_CLOUD_ORGANIZATION || secrets.TF_CLOUD_ORGANIZATION }}
+
+      - name: terraform plan
+        id: plan
+        env:
+          GITHUB_TOKEN: ${{ steps.setup.outputs.github-token }}
+          TF_VAR_billing_email: ${{ secrets.ORG_BILLING_EMAIL }}
+          ENVIRONMENT: ${{ matrix.environment }}
+        run: |
+          set +e
+          terraform plan -no-color -lock-timeout=10m -detailed-exitcode \
+            -var-file="environments/${ENVIRONMENT}.tfvars" -out=tfplan > plan.log 2>&1
+          code=$?
+          set -e
+          cat plan.log
+          if [[ $code -eq 1 ]]; then cp plan.log plan.txt; else terraform show -no-color tfplan > plan.txt; fi
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          {
+            echo "### terraform plan: ${ENVIRONMENT} (exit code ${code})"
+            echo '```'
+            head -c 60000 plan.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment the plan on the pull request
+        if: always() && steps.plan.outputs.exitcode != ''
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}
+          EXITCODE: ${{ steps.plan.outputs.exitcode }}
+          GITHUB_ORG: ${{ steps.setup.outputs.github-org }}
+        with:
+          script: |
+            const fs = require('fs');
+            const env = process.env.ENVIRONMENT;
+            const code = process.env.EXITCODE;
+            const marker = `<!-- terraform-plan:${env} -->`;
+            const status = { '0': 'No changes', '1': 'Plan failed', '2': 'Changes to apply' }[code] ?? `Exit code ${code}`;
+
+            let plan = fs.readFileSync('plan.txt', 'utf8');
+            const summary = (plan.match(/^(Plan: .*|No changes\..*)$/m) || [''])[0];
+            if (plan.length > 60000) plan = plan.slice(0, 60000) + '\n... (truncated: the full plan is in the job summary)';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const body = [
+              marker,
+              `### ${status}: \`${env}\` (${process.env.GITHUB_ORG})`,
+              summary ? `**${summary}**` : '',
+              '',
+              '<details><summary>Show the plan</summary>',
+              '',
+              '```',
+              plan,
+              '```',
+              '</details>',
+              '',
+              `Run [#${context.runNumber}](${runUrl}) for ${context.sha.slice(0, 7)}.`,
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo, issue_number: context.issue.number, per_page: 100,
+            });
+            const existing = comments.find((c) => c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+            }
+
+      - name: Fail if the plan failed
+        if: steps.plan.outputs.exitcode == '1'
+        run: |
+          echo "::error::terraform plan failed for ${{ matrix.environment }}. See the plan output above."
+          exit 1

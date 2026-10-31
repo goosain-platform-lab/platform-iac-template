@@ -1,0 +1,32 @@
+# Keeps the SHA-pinned actions and the Terraform provider current. Each update
+# arrives as a pull request and gets planned against both environments like
+# any other change. Dependabot runs read the Dependabot secrets, which
+# scripts/Initialize-ControlRepo.ps1 sets alongside the Actions secrets.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories:
+      - "/"
+      - "/.github/actions/*"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Africa/Johannesburg
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps(actions)"
+
+  - package-ecosystem: terraform
+    directories:
+      - "/"
+      - "/modules/*"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Africa/Johannesburg
+    commit-message:
+      prefix: "deps(terraform)"

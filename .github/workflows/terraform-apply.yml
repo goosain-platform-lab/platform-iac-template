@@ -1,0 +1,110 @@
+name: terraform-apply
+
+# After a merge to main: apply to sandbox first, then to prod once a platform
+# owner approves the prod deployment. Apply authenticates as the writer App.
+# Its key is a secret on the sandbox and prod Environments, and both only
+# accept jobs running from main, so no pull-request branch can ever read it.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**.tf"
+      - "**.tfvars"
+      - ".terraform.lock.hcl"
+      - ".terraform-version"
+      - ".github/workflows/terraform-apply.yml"
+      - ".github/actions/terraform-setup/**"
+  workflow_dispatch: # re-apply by hand, e.g. to undo drift
+
+permissions:
+  contents: read
+
+# One apply at a time, queued, never cancelled half-way.
+concurrency:
+  group: terraform-apply
+  cancel-in-progress: false
+
+jobs:
+  apply-sandbox:
+    name: apply (sandbox)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: sandbox
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up (writer App)
+        id: setup
+        uses: ./.github/actions/terraform-setup
+        with:
+          environment: sandbox
+          app-client-id: ${{ vars.GH_APP_WRITER_CLIENT_ID }}
+          app-private-key: ${{ secrets.GH_APP_WRITER_PRIVATE_KEY }}
+          tf-api-token: ${{ secrets.TF_API_TOKEN }}
+          tf-cloud-organization: ${{ vars.TF_CLOUD_ORGANIZATION }}
+
+      - name: terraform plan
+        id: plan
+        env:
+          GITHUB_TOKEN: ${{ steps.setup.outputs.github-token }}
+          TF_VAR_billing_email: ${{ secrets.ORG_BILLING_EMAIL }}
+        run: |
+          set +e
+          terraform plan -no-color -lock-timeout=10m -detailed-exitcode \
+            -var-file=environments/sandbox.tfvars -out=tfplan
+          code=$?
+          set -e
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          [[ $code -ne 1 ]] || { echo "::error::terraform plan failed for sandbox"; exit 1; }
+          [[ $code -eq 2 ]] || echo "No changes for sandbox; nothing to apply."
+
+      - name: terraform apply
+        if: steps.plan.outputs.exitcode == '2'
+        env:
+          GITHUB_TOKEN: ${{ steps.setup.outputs.github-token }}
+        run: terraform apply -no-color -lock-timeout=10m -input=false tfplan
+
+  apply-prod:
+    name: apply (prod)
+    needs: apply-sandbox
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: prod # waits here for a platform owner's approval
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up (writer App)
+        id: setup
+        uses: ./.github/actions/terraform-setup
+        with:
+          environment: prod
+          app-client-id: ${{ vars.GH_APP_WRITER_CLIENT_ID }}
+          app-private-key: ${{ secrets.GH_APP_WRITER_PRIVATE_KEY }}
+          tf-api-token: ${{ secrets.TF_API_TOKEN }}
+          tf-cloud-organization: ${{ vars.TF_CLOUD_ORGANIZATION }}
+
+      - name: terraform plan
+        id: plan
+        env:
+          GITHUB_TOKEN: ${{ steps.setup.outputs.github-token }}
+          TF_VAR_billing_email: ${{ secrets.ORG_BILLING_EMAIL }}
+        run: |
+          set +e
+          terraform plan -no-color -lock-timeout=10m -detailed-exitcode \
+            -var-file=environments/prod.tfvars -out=tfplan
+          code=$?
+          set -e
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          [[ $code -ne 1 ]] || { echo "::error::terraform plan failed for prod"; exit 1; }
+          [[ $code -eq 2 ]] || echo "No changes for prod; nothing to apply."
+
+      - name: terraform apply
+        if: steps.plan.outputs.exitcode == '2'
+        env:
+          GITHUB_TOKEN: ${{ steps.setup.outputs.github-token }}
+        run: terraform apply -no-color -lock-timeout=10m -input=false tfplan

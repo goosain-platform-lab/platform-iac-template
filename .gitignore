@@ -1,0 +1,30 @@
+# Terraform working files: provider binaries live here, never in git.
+.terraform/
+terraform-provider-*
+
+# State lives in HCP Terraform, never on disk or in git.
+*.tfstate
+*.tfstate.*
+
+# Saved plans and their text renderings (CI writes these).
+tfplan
+*.tfplan
+plan.log
+plan.txt
+
+# Crash logs and personal overrides.
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Anything secret. Note: *.tfvars files ARE committed; they hold config, not
+# secrets. Secrets reach Terraform through environment variables only.
+*.local.tfvars
+*.pem
+*.key
+.env

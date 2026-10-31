@@ -1,0 +1,6 @@
+# Normalise line endings so `terraform fmt -check` gives the same answer on
+# Windows and on the Linux CI runners.
+* text=auto eol=lf
+
+# PowerShell scripts keep Windows line endings for Windows PowerShell 5.1.
+*.ps1 text eol=crlf
