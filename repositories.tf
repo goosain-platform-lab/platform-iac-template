@@ -11,6 +11,7 @@ module "repository" {
   has_issues                      = each.value.has_issues
   has_wiki                        = each.value.has_wiki
   has_projects                    = each.value.has_projects
+  is_template                     = each.value.is_template
   required_approving_review_count = each.value.required_approving_review_count
   required_status_checks          = each.value.required_status_checks
 
