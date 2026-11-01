@@ -9,6 +9,9 @@ resource "github_repository" "this" {
   has_projects    = var.has_projects
   has_discussions = false
 
+  # A template repository shows "Use this template" and can seed new repositories.
+  is_template = var.is_template
+
   # Start with a README so the default branch exists before the ruleset targets it.
   auto_init = true
 

@@ -36,6 +36,12 @@ variable "has_projects" {
   type        = bool
 }
 
+variable "is_template" {
+  description = "Mark the repository as a template, so new repositories can be created from it."
+  type        = bool
+  default     = false
+}
+
 variable "required_approving_review_count" {
   description = "Approvals a pull request needs before it can merge into the default branch."
   type        = number

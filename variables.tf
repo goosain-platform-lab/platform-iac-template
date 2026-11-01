@@ -155,6 +155,7 @@ variable "repositories" {
     has_issues                      = optional(bool, true)
     has_wiki                        = optional(bool, false)
     has_projects                    = optional(bool, false)
+    is_template                     = optional(bool, false)
     required_approving_review_count = optional(number, 1)
     required_status_checks          = optional(list(string), [])
     team_access                     = optional(map(string), {})
