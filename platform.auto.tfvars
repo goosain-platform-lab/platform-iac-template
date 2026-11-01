@@ -30,8 +30,6 @@ actions_policy = {
   patterns_allowed = [
     "hashicorp/setup-terraform@*",
     "terraform-linters/setup-tflint@*",
-    # Used by the workload templates to sign in to Azure with OIDC.
-    "azure/login@*",
   ]
   sha_pinning_required             = true
   default_workflow_permissions     = "read"
@@ -75,96 +73,5 @@ repositories = {
   demo-web = {
     description = "Sample web front end, managed by the platform baseline"
     topics      = ["demo", "web"]
-  }
-
-  # Azure web app building blocks: resource modules -> patterns -> workload templates.
-  # Modules are consumed by tag (git::...?ref=vX.Y.Z), so each repo keeps its release tags.
-  # Each one requires its own CI job to pass before a pull request can merge.
-
-  terraform-azurerm-resource-storage = {
-    description            = "Terraform module: one Azure Storage account (sta{environment}{purpose}zan naming)"
-    topics                 = ["terraform", "azure", "terraform-module"]
-    required_status_checks = ["Terraform validate"]
-  }
-
-  terraform-azurerm-resource-windows-web-app = {
-    description            = "Terraform module: one Windows App Service site with a managed identity"
-    topics                 = ["terraform", "azure", "terraform-module"]
-    required_status_checks = ["Terraform validate"]
-  }
-
-  terraform-azurerm-resource-linux-web-app = {
-    description            = "Terraform module: one Linux App Service site with a managed identity"
-    topics                 = ["terraform", "azure", "terraform-module"]
-    required_status_checks = ["Terraform validate"]
-  }
-
-  terraform-azurerm-resource-sql-database-sep = {
-    description            = "Terraform module: a database in an Azure SQL elastic pool"
-    topics                 = ["terraform", "azure", "terraform-module"]
-    required_status_checks = ["Terraform validate"]
-  }
-
-  terraform-azurerm-resource-application-insights = {
-    description            = "Terraform module: workspace-based Application Insights and the site settings to wire it in"
-    topics                 = ["terraform", "azure", "terraform-module"]
-    required_status_checks = ["Terraform validate"]
-  }
-
-  terraform-azurerm-resource-locks = {
-    description            = "Terraform module: management locks for the resources of a web app deployment"
-    topics                 = ["terraform", "azure", "terraform-module"]
-    required_status_checks = ["Terraform validate"]
-  }
-
-  terraform-azurerm-utility-webapp-context = {
-    description            = "Terraform module: resolves shared infrastructure for a web app by naming convention"
-    topics                 = ["terraform", "azure", "terraform-module"]
-    required_status_checks = ["Terraform validate"]
-  }
-
-  terraform-azurerm-pattern-web-app-1tier = {
-    description            = "Terraform pattern: one App Service site with insights, database and locks"
-    topics                 = ["terraform", "azure", "terraform-module"]
-    required_status_checks = ["Terraform validate"]
-  }
-
-  terraform-azurerm-pattern-web-app-2tier = {
-    description            = "Terraform pattern: web + api App Service pair with insights, database and locks"
-    topics                 = ["terraform", "azure", "terraform-module"]
-    required_status_checks = ["Terraform validate"]
-  }
-
-  terraform-azurerm-pattern-web-app-3tier = {
-    description            = "Terraform pattern: web, api and backoffice App Service sites with insights, database and locks"
-    topics                 = ["terraform", "azure", "terraform-module"]
-    required_status_checks = ["Terraform validate"]
-  }
-
-  terraform-azurerm-template-workload-1tier = {
-    description            = "Template: 1-tier web app workload (a single site)"
-    topics                 = ["terraform", "azure", "template"]
-    is_template            = true
-    required_status_checks = ["Precheck: fmt, validate, lint"]
-  }
-
-  terraform-azurerm-template-workload-2tier = {
-    description            = "Template: 2-tier web app workload (frontend + api)"
-    topics                 = ["terraform", "azure", "template"]
-    is_template            = true
-    required_status_checks = ["Precheck: fmt, validate, lint"]
-  }
-
-  terraform-azurerm-template-workload-3tier = {
-    description            = "Template: 3-tier web app workload (frontend, api, backoffice)"
-    topics                 = ["terraform", "azure", "template"]
-    is_template            = true
-    required_status_checks = ["Precheck: fmt, validate, lint"]
-  }
-
-  terraform-azurerm-tooling = {
-    description            = "Tooling for web app workloads: prerequisite scripts, module releases and workflow sync"
-    topics                 = ["terraform", "azure", "powershell", "tooling"]
-    required_status_checks = ["Validate tooling"]
   }
 }
