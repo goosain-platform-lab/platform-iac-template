@@ -226,6 +226,18 @@ repositories = {
     }
   }
 
+  terraform-azurerm-aks = {
+    description = "Terraform module: private, secretless AKS with workload identity, Cilium and Flux GitOps"
+    template    = "repository-template"
+    topics      = ["terraform", "terraform-module", "azure", "kubernetes", "aks", "gitops"]
+    properties = {
+      criticality            = "tier-3"
+      data-classification    = "public"
+      contains-personal-data = "no"
+      technical-owner        = "platform-owners"
+    }
+  }
+
   repository-template = {
     description = "Starting point for new repositories. Its files are published from templates/ in the platform repository; change them there"
     topics      = ["platform", "template"]
