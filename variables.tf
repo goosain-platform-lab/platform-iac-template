@@ -146,8 +146,113 @@ variable "default_team_access" {
   }
 }
 
+# --- Classification: custom properties and tiers ---------------------------
+
+variable "custom_properties" {
+  description = "The classification schema every managed repository carries, keyed by property name (lower-case kebab-case). The criticality property selects each repository's branch rules (var.tier_policies)."
+  type = map(object({
+    description    = string
+    value_type     = optional(string, "single_select")
+    allowed_values = optional(list(string), [])
+    required       = optional(bool, false)
+    editable_by    = optional(string, "org")
+    enabled        = optional(bool, true)
+  }))
+  default = {}
+
+  validation {
+    condition     = alltrue([for name in keys(var.custom_properties) : can(regex("^[a-z0-9]+(-[a-z0-9]+)*$", name)) && length(name) <= 75])
+    error_message = "Custom property names must be lower-case kebab-case, 75 characters at most. Offending: ${join(", ", [for name in keys(var.custom_properties) : name if !(can(regex("^[a-z0-9]+(-[a-z0-9]+)*$", name)) && length(name) <= 75)])}."
+  }
+
+  validation {
+    condition     = alltrue([for property in values(var.custom_properties) : length(trimspace(property.description)) > 0])
+    error_message = "Every custom property needs a description saying what it is for. GitHub shows it next to the value."
+  }
+
+  validation {
+    condition     = alltrue([for property in values(var.custom_properties) : contains(["single_select", "string", "true_false", "url"], property.value_type)])
+    error_message = "value_type must be single_select, string, true_false or url. multi_select is not supported: a repository's values here are single strings."
+  }
+
+  validation {
+    condition = alltrue([
+      for property in values(var.custom_properties) : property.value_type == "single_select" ? (
+        length(property.allowed_values) > 0 && length(property.allowed_values) <= 200 && length(distinct(property.allowed_values)) == length(property.allowed_values)
+      ) : length(property.allowed_values) == 0
+    ])
+    error_message = "A single_select property needs 1 to 200 distinct allowed_values; the other types take none."
+  }
+
+  validation {
+    condition     = alltrue(flatten([for property in values(var.custom_properties) : [for value in property.allowed_values : can(regex("^[a-z0-9]+(-[a-z0-9]+)*$", value)) && length(value) <= 75]]))
+    error_message = "Allowed values are lower-case kebab-case and 75 characters at most, like every other name you see in GitHub."
+  }
+
+  validation {
+    condition     = alltrue([for property in values(var.custom_properties) : contains(["org", "org-and-repo"], property.editable_by)])
+    error_message = "editable_by must be org (only org owners and the platform) or org-and-repo (repository admins too)."
+  }
+
+  validation {
+    condition = try(
+      var.custom_properties["criticality"].value_type == "single_select" &&
+      var.custom_properties["criticality"].enabled &&
+      var.custom_properties["criticality"].required &&
+      var.custom_properties["criticality"].editable_by == "org",
+      false
+    )
+    error_message = "Branch rules follow a property named criticality, which must be single_select, switched on, required, and editable by the org only, so no repository can change its own tier."
+  }
+}
+
+variable "default_repository_properties" {
+  description = "Property values every managed repository gets unless it sets its own in properties."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for property in keys(var.default_repository_properties) : contains(keys(var.custom_properties), property)])
+    error_message = "default_repository_properties may only name properties defined in var.custom_properties. Unknown: ${join(", ", [for property in keys(var.default_repository_properties) : property if !contains(keys(var.custom_properties), property)])}."
+  }
+}
+
+variable "tier_policies" {
+  description = "The default branch's rules for each criticality tier, keyed by tier. Every repository's ruleset is built from its tier; protected = false means no ruleset at all."
+  type = map(object({
+    protected                         = optional(bool, true)
+    required_approving_review_count   = optional(number, 1)
+    require_code_owner_review         = optional(bool, true)
+    dismiss_stale_reviews_on_push     = optional(bool, true)
+    require_last_push_approval        = optional(bool, false)
+    required_review_thread_resolution = optional(bool, true)
+    required_linear_history           = optional(bool, false)
+    required_signatures               = optional(bool, false)
+    required_status_checks            = optional(list(string), [])
+  }))
+
+  validation {
+    condition = try(
+      length(setsubtract(keys(var.tier_policies), var.custom_properties["criticality"].allowed_values)) == 0 &&
+      length(setsubtract(var.custom_properties["criticality"].allowed_values, keys(var.tier_policies))) == 0,
+      false
+    )
+    error_message = "tier_policies needs exactly one entry for each allowed value of the criticality property."
+  }
+
+  validation {
+    condition     = alltrue([for tier in values(var.tier_policies) : tier.required_approving_review_count >= 0 && tier.required_approving_review_count <= 10])
+    error_message = "A tier's required_approving_review_count must be between 0 and 10."
+  }
+
+  validation {
+    condition     = alltrue(flatten([for tier in values(var.tier_policies) : [for check in tier.required_status_checks : length(trimspace(check)) > 0]]))
+    error_message = "Required status check names cannot be empty."
+  }
+}
+
 variable "repositories" {
-  description = "Repositories to create and protect, keyed by repository name (lower-case kebab-case, e.g. demo-api). Each one must say why it exists."
+  description = "Repositories to create and protect, keyed by repository name (lower-case kebab-case, e.g. demo-api). Each one must say why it exists and carry a value for every required custom property."
   type = map(object({
     description                     = string
     visibility                      = optional(string, "public")
@@ -156,7 +261,10 @@ variable "repositories" {
     has_wiki                        = optional(bool, false)
     has_projects                    = optional(bool, false)
     is_template                     = optional(bool, false)
-    required_approving_review_count = optional(number, 1)
+    template                        = optional(string)
+    properties                      = optional(map(string), {})
+    ruleset_enforcement             = optional(string, "active")
+    required_approving_review_count = optional(number)
     required_status_checks          = optional(list(string), [])
     team_access                     = optional(map(string), {})
   }))
@@ -192,8 +300,66 @@ variable "repositories" {
   }
 
   validation {
-    condition     = alltrue([for repo in values(var.repositories) : repo.required_approving_review_count >= 0 && repo.required_approving_review_count <= 10])
-    error_message = "required_approving_review_count must be between 0 and 10."
+    condition     = alltrue(flatten([for repo in values(var.repositories) : [for property in keys(repo.properties) : contains(keys(var.custom_properties), property)]]))
+    error_message = "A repository's properties may only name properties defined in var.custom_properties. Unknown: ${join(", ", distinct(flatten([for name, repo in var.repositories : [for property in keys(repo.properties) : "${name}: ${property}" if !contains(keys(var.custom_properties), property)]])))}."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for name, repo in var.repositories : [
+        for property, definition in var.custom_properties :
+        contains(keys(merge(var.default_repository_properties, repo.properties)), property)
+        if definition.required && definition.enabled
+      ]
+    ]))
+    error_message = "Every repository needs a value for each required custom property (its own, or one from default_repository_properties). Missing: ${join(", ", flatten([for name, repo in var.repositories : [for property, definition in var.custom_properties : "${name}: ${property}" if definition.required && definition.enabled && !contains(keys(merge(var.default_repository_properties, repo.properties)), property)]]))}."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for name, repo in var.repositories : [
+        for property, value in merge(var.default_repository_properties, repo.properties) : try(
+          length(value) <= 75 && (
+            var.custom_properties[property].value_type == "single_select" ? contains(var.custom_properties[property].allowed_values, value) :
+            var.custom_properties[property].value_type == "true_false" ? contains(["true", "false"], value) :
+            var.custom_properties[property].value_type == "url" ? can(regex("^https://", value)) :
+            length(trimspace(value)) > 0
+          ),
+          true # an unknown property is reported by the rule above
+        )
+      ]
+    ]))
+    error_message = "A property value must suit its property: one of the allowed values for single_select, true or false for true_false, an https:// address for url, never empty, and 75 characters at most. Offending: ${join(", ", flatten([for name, repo in var.repositories : [for property, value in merge(var.default_repository_properties, repo.properties) : "${name}: ${property} = \"${value}\"" if !try(length(value) <= 75 && (var.custom_properties[property].value_type == "single_select" ? contains(var.custom_properties[property].allowed_values, value) : var.custom_properties[property].value_type == "true_false" ? contains(["true", "false"], value) : var.custom_properties[property].value_type == "url" ? can(regex("^https://", value)) : length(trimspace(value)) > 0), true)]]))}."
+  }
+
+  validation {
+    condition     = alltrue([for repo in values(var.repositories) : contains(["active", "evaluate", "disabled"], repo.ruleset_enforcement)])
+    error_message = "ruleset_enforcement must be active, evaluate or disabled."
+  }
+
+  validation {
+    condition     = var.github_plan == "enterprise" || alltrue([for repo in values(var.repositories) : repo.ruleset_enforcement != "evaluate"])
+    error_message = "Evaluate mode (rules that record what they would block, without blocking) needs GitHub Enterprise Cloud. Use active, or disabled while you adopt an existing repository."
+  }
+
+  validation {
+    condition = alltrue([
+      for repo in values(var.repositories) : repo.required_approving_review_count == null ? true : (
+        repo.required_approving_review_count <= 10 &&
+        repo.required_approving_review_count >= try(var.tier_policies[merge(var.default_repository_properties, repo.properties)["criticality"]].required_approving_review_count, 0)
+      )
+    ])
+    error_message = "A repository may raise its tier's required approvals, never lower them, and 10 is the most GitHub allows. To need fewer, change its tier. Offending: ${join(", ", [for name, repo in var.repositories : "${name} (${repo.required_approving_review_count})" if repo.required_approving_review_count == null ? false : (repo.required_approving_review_count > 10 || repo.required_approving_review_count < try(var.tier_policies[merge(var.default_repository_properties, repo.properties)["criticality"]].required_approving_review_count, 0))])}."
+  }
+
+  validation {
+    condition     = alltrue(flatten([for repo in values(var.repositories) : [for check in repo.required_status_checks : length(trimspace(check)) > 0]]))
+    error_message = "Required status check names cannot be empty."
+  }
+
+  validation {
+    condition     = alltrue([for name, repo in var.repositories : repo.template == null ? true : (repo.template != name && !repo.is_template && try(var.repositories[repo.template].is_template, false))])
+    error_message = "template must name another repository in var.repositories that has is_template = true, and a template repository is not itself created from one."
   }
 
   validation {

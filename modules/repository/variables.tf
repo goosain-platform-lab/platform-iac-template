@@ -1,5 +1,5 @@
 # Inputs are validated by the root module (variables.tf), which knows about
-# teams and the org's plan. This module only builds one repository.
+# teams, tiers and the org's plan. This module only builds one repository.
 
 variable "name" {
   description = "Repository name, lower-case kebab-case."
@@ -42,14 +42,29 @@ variable "is_template" {
   default     = false
 }
 
-variable "required_approving_review_count" {
-  description = "Approvals a pull request needs before it can merge into the default branch."
-  type        = number
+variable "template" {
+  description = "Create the repository as a copy of this template repository's files. Only used at creation; null starts from an empty README."
+  type = object({
+    owner      = string
+    repository = string
+  })
+  default = null
 }
 
-variable "required_status_checks" {
-  description = "Status check names (job names) that must pass before merging. Empty means none."
-  type        = list(string)
+variable "branch_rules" {
+  description = "The default branch's rules, resolved from the repository's tier by the root module. null means no ruleset (an unprotected tier)."
+  type = object({
+    enforcement                       = string
+    required_approving_review_count   = number
+    require_code_owner_review         = bool
+    dismiss_stale_reviews_on_push     = bool
+    require_last_push_approval        = bool
+    required_review_thread_resolution = bool
+    required_linear_history           = bool
+    required_signatures               = bool
+    required_status_checks            = list(string)
+  })
+  default = null
 }
 
 variable "team_access" {
