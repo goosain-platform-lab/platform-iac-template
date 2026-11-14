@@ -19,7 +19,7 @@ everything passes.
 |---|---|---|
 | Each org | Two-factor authentication is required | **Fail.** GitHub has no API to set it, so Terraform can't |
 | | Members can't delete, transfer or change the visibility of repositories | Warn. The API can read these but not set them |
-| | Deploy keys are off; fork pull request workflows wait for approval; no self-hosted runners | Warn. Settings the Terraform provider doesn't manage. N/A where the org's plan doesn't offer one |
+| | Deploy keys are off; fork pull request workflows wait for approval | Warn. Settings the Terraform provider doesn't manage. N/A where the org's plan doesn't offer one |
 | | Both Apps are installed on all repositories, with exactly the permissions the pipeline needs | **Fail** if one is missing or lacks a permission (a missed permission update shows up here). Warn if it holds more than it needs |
 | | Every repository has a `criticality` tier | Warn, listing the repositories. Without a tier a repository gets no branch rules. Archived repositories, `.github` and this repository are not counted |
 | This repository | Environments `sandbox` and `prod` deploy from `main` only, and `prod` needs an approval | **Fail** |

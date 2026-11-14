@@ -52,7 +52,6 @@ function orgRoutes(org) {
       deploy_keys_enabled_for_repositories: false,
     },
     'GET /orgs/{org}/actions/permissions/fork-pr-contributor-approval': { approval_policy: 'all_external_contributors' },
-    'GET /orgs/{org}/actions/permissions/self-hosted-runners': { enabled_repositories: 'none' },
     'GET /orgs/{org}/installations': [
       { app_slug: 'acme-platform-reader', repository_selection: 'all', suspended_at: null, permissions: { ...expected.apps.reader.permissions } },
       { app_slug: 'acme-platform-writer', repository_selection: 'all', suspended_at: null, permissions: { ...expected.apps.writer.permissions } },

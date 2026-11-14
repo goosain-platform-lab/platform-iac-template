@@ -11,3 +11,4 @@ change its decision: a later record replaces it, and says so.
 | [0003](0003-classification-and-tiered-branch-rules.md) | Classification by custom properties, branch rules by tier | Accepted |
 | [0004](0004-templates-published-by-an-owner.md) | Templates published by an owner, not the pipeline | Accepted |
 | [0005](0005-health-check-beside-drift.md) | A health check beside the drift check | Accepted |
+| [0006](0006-settings-the-reader-cannot-see.md) | Settings the read-only App can't see | Accepted |

@@ -170,8 +170,8 @@ gh auth refresh --scopes workflow
 
 ## 9. Prove drift detection works
 
-1. In the sandbox org, open **demo-api > Settings > General** and tick
-   **Allow merge commits**.
+1. In the sandbox org, open **demo-api > Settings > General** and, under
+   **Features**, tick **Wikis**.
 2. Run **terraform-drift**. An issue **Drift detected: sandbox** opens, with the plan
    showing the change.
 3. Run **terraform-apply** (approve prod when asked; prod has no changes). The
