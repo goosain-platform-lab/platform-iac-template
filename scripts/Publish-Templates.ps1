@@ -92,6 +92,11 @@ function Invoke-Gh {
         [Parameter(Mandatory = $true)] [string] $What,
         [string] $InputText
     )
+    # Windows PowerShell 5.1 drops double quotes inside arguments passed to a
+    # program, so gh would get a different --jq filter. Keep them out.
+    foreach ($argument in $Arguments) {
+        if ($argument.Contains('"')) { Exit-Publish "Script bug: a gh argument contains a double quote, which Windows PowerShell 5.1 removes: $argument" }
+    }
     if ($PSBoundParameters.ContainsKey('InputText')) {
         $output = $InputText | & gh @Arguments
     }
@@ -214,7 +219,13 @@ function Get-TemplatePlan {
     $plan.DefaultBranch = (Invoke-Gh -Arguments @('api', "repos/$Org/$name", '--jq', '.default_branch') -What "Reading $Org/$name").Trim()
     $truncated = (Invoke-Gh -Arguments @('api', "repos/$Org/$name/git/trees/$($plan.DefaultBranch)?recursive=1", '--jq', '.truncated') -What "Listing the files in $Org/$name").Trim()
     if ($truncated -ne 'false') { Exit-Publish "GitHub truncated the file list of $Org/$name, so the comparison would be incomplete." }
-    $existing = Get-GhLines -Arguments @('api', "repos/$Org/$name/git/trees/$($plan.DefaultBranch)?recursive=1", '--jq', '.tree[] | select(.type == "blob") | .path') -What "Listing the files in $Org/$name"
+    $entries = Get-GhLines -Arguments @('api', "repos/$Org/$name/git/trees/$($plan.DefaultBranch)?recursive=1", '--jq', '.tree[] | [.type, .path] | @tsv') -What "Listing the files in $Org/$name"
+    $existing = New-Object System.Collections.Generic.List[string]
+    foreach ($entry in $entries) {
+        $fields = $entry -split "`t", 2
+        if ($fields.Count -ne 2) { Exit-Publish "Unexpected file list entry from $Org/${name}: $entry" }
+        if ($fields[0] -eq 'blob') { $existing.Add($fields[1]) }
+    }
 
     foreach ($path in $rendered.Files.Keys) {
         $wanted = $rendered.Files[$path]
@@ -238,7 +249,13 @@ function Get-TemplatePlan {
     }
 
     if ($plan.Enabled -and $plan.Changes.Count -gt 0) {
-        $open = Get-GhLines -Arguments @('pr', 'list', '--repo', "$Org/$name", '--state', 'open', '--limit', '100', '--json', 'number,headRefName', '--jq', ".[] | select(.headRefName | startswith(`"$branchPrefix`")) | .number") -What "Listing open pull requests in $Org/$name"
+        $pullRequests = Get-GhLines -Arguments @('pr', 'list', '--repo', "$Org/$name", '--state', 'open', '--limit', '100', '--json', 'number,headRefName', '--jq', '.[] | [.number, .headRefName] | @tsv') -What "Listing open pull requests in $Org/$name"
+        $open = New-Object System.Collections.Generic.List[string]
+        foreach ($entry in $pullRequests) {
+            $fields = $entry -split "`t", 2
+            if ($fields.Count -ne 2) { Exit-Publish "Unexpected pull request entry from $Org/${name}: $entry" }
+            if ($fields[1].StartsWith($branchPrefix, [System.StringComparison]::Ordinal)) { $open.Add($fields[0]) }
+        }
         if ($open.Count -gt 0) {
             $plan.Blocked = "An earlier publish is still open: pull request #$($open[0]) in $Org/$name. Merge or close it, then publish again."
         }
