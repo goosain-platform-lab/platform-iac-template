@@ -194,6 +194,7 @@ Found by reading the provider's source code
 | A repository's template can't be changed after creation | A permanent diff on an existing repository given a template | `ignore_changes` on `template` |
 | Destroying a custom property deletes it from GitHub | Every repository loses its value | `prevent_destroy = true`; retire it with a `removed` block |
 | Mocked providers can't import | `terraform test` crashes | Tests set `adopt_organization_settings = false` |
+| GitHub hides bypass actors and merge settings from the read-only App | Two changes per repository in every plan; drift never clears | `ignore_changes` on them ([ADR 0006](adr/0006-settings-the-reader-cannot-see.md)). A change by hand to them isn't detected |
 
 ## Manual by design
 
@@ -201,7 +202,7 @@ Found by reading the provider's source code
 |---|---|---|
 | Require two-factor authentication (both orgs) | GitHub has no API for it | `platform-health`, daily |
 | Members can't delete, transfer or change the visibility of repositories | The API can read these but not set them | `platform-health`, daily |
-| Deploy keys off, fork PR approval, no self-hosted runners | Not in the Terraform provider | `platform-health`, daily |
+| Deploy keys off, fork PR approval | Not in the Terraform provider | `platform-health`, daily |
 | Team membership and org owners | People changes shouldn't wait on a pull request | |
 | Publishing the templates | Keeps file write access out of the pipeline's Apps | `Publish-Templates.ps1` dry run |
 | Billing | Owned by whoever pays | |

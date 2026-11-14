@@ -36,14 +36,6 @@
         "severity": "warn",
         "optional": true,
         "fix": "Settings > Actions > General > Approval for running fork pull request workflows: require approval for all external contributors."
-      },
-      {
-        "path": "/orgs/{org}/actions/permissions/self-hosted-runners",
-        "field": "enabled_repositories",
-        "expected": "none",
-        "severity": "warn",
-        "optional": true,
-        "fix": "Settings > Actions > Runners: allow no repository to use self-hosted runners. The platform runs on GitHub-hosted runners only."
       }
     ]
   },

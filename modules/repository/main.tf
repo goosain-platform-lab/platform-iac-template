@@ -64,6 +64,20 @@ resource "github_repository" "this" {
       # A template only seeds a new repository. Adding one to an existing
       # repository can't change it, so the change is ignored, not planned.
       template,
+      # GitHub only returns merge settings to a caller that can change them, so
+      # the read-only App that plans and checks drift sees them all as off.
+      # They are set when the repository is created and not compared after.
+      # Squash-only is still enforced by the ruleset, which the reader can see.
+      allow_merge_commit,
+      allow_rebase_merge,
+      allow_squash_merge,
+      allow_auto_merge,
+      allow_update_branch,
+      delete_branch_on_merge,
+      merge_commit_title,
+      merge_commit_message,
+      squash_merge_commit_title,
+      squash_merge_commit_message,
     ]
   }
 }
@@ -142,6 +156,14 @@ resource "github_repository_ruleset" "default_branch" {
         }
       }
     }
+  }
+
+  lifecycle {
+    # GitHub only returns bypass actors to a caller with write access to the
+    # ruleset, so the read-only App sees none and every plan would re-add them.
+    # They are set when the ruleset is created and not compared after: a bypass
+    # added by hand is not detected (see docs/controls.md).
+    ignore_changes = [bypass_actors]
   }
 }
 
