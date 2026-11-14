@@ -1,0 +1,8 @@
+# GitHub asks the code owners to review every pull request, and the branch
+# rules for every tier require their approval. The code owner review is how
+# "a lead developer approved this" is enforced: GitHub cannot require a role.
+#
+# Keep one owning team. When a line lists several owners, an approval from any
+# one of them counts, so a second team here could stand in for the first.
+# Ask other people for reviews on the pull request instead.
+*       @{{ORGANIZATION}}/{{CODE_OWNERS_TEAM}}

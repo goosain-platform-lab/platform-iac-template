@@ -12,8 +12,19 @@ resource "github_repository" "this" {
   # A template repository shows "Use this template" and can seed new repositories.
   is_template = var.is_template
 
-  # Start with a README so the default branch exists before the ruleset targets it.
+  # Start with a README so the default branch exists before the ruleset targets
+  # it, or, given a template, with a copy of the template's files.
   auto_init = true
+
+  dynamic "template" {
+    for_each = var.template == null ? [] : [var.template]
+
+    content {
+      owner                = template.value.owner
+      repository           = template.value.repository
+      include_all_branches = false
+    }
+  }
 
   # Squash-only: one commit per pull request keeps the history linear and readable.
   allow_merge_commit          = false
@@ -45,10 +56,15 @@ resource "github_repository" "this" {
   }
 
   lifecycle {
-    # GitHub treats Advanced Security as always on for public repositories and
-    # rejects attempts to set it, so it stays out of config. Ignoring it here
-    # stops it showing up as drift.
-    ignore_changes = [security_and_analysis[0].advanced_security]
+    ignore_changes = [
+      # GitHub treats Advanced Security as always on for public repositories and
+      # rejects attempts to set it, so it stays out of config. Ignoring it here
+      # stops it showing up as drift.
+      security_and_analysis[0].advanced_security,
+      # A template only seeds a new repository. Adding one to an existing
+      # repository can't change it, so the change is ignored, not planned.
+      template,
+    ]
   }
 }
 
@@ -66,11 +82,20 @@ resource "github_repository_dependabot_security_updates" "this" {
   depends_on = [github_repository_vulnerability_alerts.this]
 }
 
+# The ruleset used to be a single resource. Repositories in an unprotected tier
+# now have none, so it is counted; this keeps existing rulesets in place.
+moved {
+  from = github_repository_ruleset.default_branch
+  to   = github_repository_ruleset.default_branch[0]
+}
+
 resource "github_repository_ruleset" "default_branch" {
+  count = var.branch_rules == null ? 0 : 1
+
   name        = "default-branch-protection"
   repository  = github_repository.this.name
   target      = "branch"
-  enforcement = "active"
+  enforcement = var.branch_rules.enforcement
 
   conditions {
     ref_name {
@@ -90,25 +115,26 @@ resource "github_repository_ruleset" "default_branch" {
   rules {
     deletion                = true
     non_fast_forward        = true
-    required_linear_history = true
+    required_linear_history = var.branch_rules.required_linear_history
+    required_signatures     = var.branch_rules.required_signatures
 
     pull_request {
-      required_approving_review_count   = var.required_approving_review_count
-      dismiss_stale_reviews_on_push     = true
-      require_code_owner_review         = false
-      require_last_push_approval        = false
-      required_review_thread_resolution = true
+      required_approving_review_count   = var.branch_rules.required_approving_review_count
+      dismiss_stale_reviews_on_push     = var.branch_rules.dismiss_stale_reviews_on_push
+      require_code_owner_review         = var.branch_rules.require_code_owner_review
+      require_last_push_approval        = var.branch_rules.require_last_push_approval
+      required_review_thread_resolution = var.branch_rules.required_review_thread_resolution
       allowed_merge_methods             = ["squash"]
     }
 
     dynamic "required_status_checks" {
-      for_each = length(var.required_status_checks) > 0 ? [1] : []
+      for_each = length(var.branch_rules.required_status_checks) > 0 ? [1] : []
 
       content {
         strict_required_status_checks_policy = true
 
         dynamic "required_check" {
-          for_each = toset(var.required_status_checks)
+          for_each = toset(var.branch_rules.required_status_checks)
 
           content {
             context = required_check.value

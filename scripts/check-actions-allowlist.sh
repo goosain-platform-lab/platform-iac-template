@@ -6,7 +6,9 @@
 # action to be pinned to a full commit SHA. This repository's workflows run
 # under that same policy. A workflow using an action the policy blocks would
 # stop working after the next apply, including the workflow you'd need to fix
-# it, so this check fails the pull request first.
+# it, so this check fails the pull request first. The workflows under
+# templates/ are checked too: they are published into the org's repositories
+# and run under the same policy there.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,13 +16,13 @@ config="$repo_root/platform.auto.tfvars"
 [[ -f "$config" ]] || { echo "::error::$config not found"; exit 1; }
 
 mapfile -t refs < <(
-  grep -rhoE '^[[:space:]]*(-[[:space:]]*)?uses:[[:space:]]*[^[:space:]#]+' \
-    "$repo_root/.github/workflows" "$repo_root/.github/actions" |
+  grep -rhoE --include='*.yml' --include='*.yaml' '^[[:space:]]*(-[[:space:]]*)?uses:[[:space:]]*[^[:space:]#]+' \
+    "$repo_root/.github/workflows" "$repo_root/.github/actions" "$repo_root/templates" |
     sed -E "s/^[[:space:]]*(-[[:space:]]*)?uses:[[:space:]]*//; s/^[\"']//; s/[\"']\$//" |
     grep -v '^\./' |
     sort -u
 )
-((${#refs[@]} > 0)) || { echo "::error::No 'uses:' lines found under .github; the scan itself is broken."; exit 1; }
+((${#refs[@]} > 0)) || { echo "::error::No 'uses:' lines found under .github or templates; the scan itself is broken."; exit 1; }
 
 github_owned_allowed=false
 if grep -qE '^[[:space:]]*github_owned_allowed[[:space:]]*=[[:space:]]*true' "$config"; then
@@ -45,7 +47,7 @@ for ref in "${refs[@]}"; do
       errors=$((errors + 1))
     fi
   elif ! grep -qF "\"$repo@*\"" "$config"; then
-    echo "::error::$repo is used under .github but is not allowed by the org. Add \"$repo@*\" to actions_policy.patterns_allowed in platform.auto.tfvars."
+    echo "::error::$repo is used under .github or templates but is not allowed by the org. Add \"$repo@*\" to actions_policy.patterns_allowed in platform.auto.tfvars."
     errors=$((errors + 1))
   fi
 done

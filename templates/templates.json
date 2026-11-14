@@ -1,0 +1,22 @@
+{
+  "description": "What scripts/Publish-Templates.ps1 publishes from this folder, and the values it fills in. See docs/templates.md.",
+  "values": {
+    "CODE_OWNERS_TEAM": "lead-developers",
+    "SECURITY_CONTACT": "",
+    "SUPPORT_CONTACT": ""
+  },
+  "repositories": [
+    {
+      "name": "repository-template",
+      "source": "repository-template",
+      "enabled": true,
+      "reason": "The starting point for new repositories: CI that reports the build-and-test check, CODEOWNERS for the lead developers, Dependabot for Actions and a .gitignore."
+    },
+    {
+      "name": ".github",
+      "source": "dotgithub",
+      "enabled": false,
+      "reason": "Org-wide defaults: security policy, contributing guide, issue forms, pull request template and starter workflow. Switched off until SECURITY_CONTACT and SUPPORT_CONTACT are filled in: a security policy must name a real route."
+    }
+  ]
+}

@@ -69,10 +69,17 @@ New GitHub App**.
 | Homepage URL | the repository URL | the repository URL |
 | Webhook > Active | unticked | unticked |
 | Repository > Administration | Read-only | Read and write |
+| Repository > Contents | No access | Read-only, to create repositories from the template |
+| Repository > Custom properties | No access | Read and write, to set each repository's values |
 | Repository > Metadata | Read-only | Read-only |
 | Organization > Administration | Read-only | Read and write |
+| Organization > Custom properties | Read-only | Admin, to define the properties |
 | Organization > Members | Read-only | Read and write |
 | Where can it be installed? | Any account | Any account |
+
+Keep the names in this pattern: the health check works out the writer's name
+from the reader's. It also checks every morning that both Apps hold exactly
+these permissions ([health.md](health.md)).
 
 "Any account" is needed to install the App on the sandbox org as well. It only
 means other accounts *could* install it on their own orgs; it gives nobody access
@@ -119,8 +126,8 @@ gh pr create --fill
 ```
 
 1. Wait for **checks**, **plan (sandbox)** and **plan (prod)**. Each plan posts a
-   comment. The first one shows roughly `1 to import, 23 to add, 1 to change`
-   (24 to add in prod): the org settings are adopted, everything else is created.
+   comment. The first one shows roughly `1 to import, 51 to add` (52 to add in
+   prod): the org settings are adopted, everything else is created.
 2. Merge. Working alone you can't approve your own PR, so use **Merge without
    waiting for requirements to be met** (org owners may bypass, but only through a PR).
 3. **Actions > terraform-apply:** sandbox applies, then prod waits. Click
@@ -138,8 +145,28 @@ add it to `ignore_changes` with a comment saying why (see "Provider quirks" in
 In **both** orgs:
 
 - **Settings > Authentication security > Require two-factor authentication.**
+- **Settings > Member privileges:** untick repository deletion and transfer, and
+  repository visibility change. Set **Deploy keys** to Disabled.
+- **Settings > Actions > General:** require approval for fork pull request
+  workflows from all external contributors.
 - **Teams > platform-owners > Add a member:** add yourself (and anyone else who
   approves prod). Members should be org Owners.
+- **Teams > lead-developers > Add a member:** add yourself. They are the code
+  owners of every repository created from the template.
+
+Then run **Actions > platform-health > Run workflow**. It checks all of these,
+and every morning from then on ([health.md](health.md)).
+
+## 8b. Publish the templates
+
+Once the first apply has created `repository-template` in both orgs, publish its
+files, sandbox first ([templates.md](templates.md)):
+
+```powershell
+gh auth refresh --scopes workflow
+.\scripts\Publish-Templates.ps1 -Environment sandbox -Apply   # merge the PR it opens
+.\scripts\Publish-Templates.ps1 -Environment prod -Apply      # then this one
+```
 
 ## 9. Prove drift detection works
 
@@ -164,12 +191,31 @@ demonstration worth being able to walk through in an interview.
 - Delete repositories you no longer want in the GitHub UI, then delete the old
   setup's local `terraform.tfstate*` files.
 
+## Upgrading a lab set up before classification and tiers
+
+If your lab predates custom properties, tier rules, templates and the health
+check, do these **before merging** the pull request that brings them:
+
+1. **Give both Apps the new permissions** from the table in step 4: the reader
+   gets Organization > Custom properties: Read-only; the writer gets Contents:
+   Read-only, Repository > Custom properties: Read and write, and
+   Organization > Custom properties: Admin.
+2. **Accept the update in both orgs:** Settings > GitHub Apps > each App >
+   Review request > Accept. Until then the Apps keep their old permissions, and
+   the apply fails creating the properties.
+3. Merge, and approve prod. Expect roughly `28 to add, 3 to change` in each
+   environment: the property schema and every repository's values, the
+   `repository-template` repository, the existing rulesets moved to their tier's
+   rules, and the org settings (base permission `none`, web sign-off).
+4. Do step 8's new settings, publish the templates (step 8b), and run
+   **platform-health** once.
+
 ## Troubleshooting
 
 | Message | Meaning and fix |
 |---|---|
 | `Failed to create token for "<org>"` / Not Found | The App isn't installed on that org. Install it (step 4.3). |
-| `Resource not accessible by integration` (403) | The App lacks a permission. Compare with the table in step 4. |
+| `Resource not accessible by integration` (403) | The App lacks a permission. Compare with the table in step 4, and check that each org accepted the last permission update (Settings > GitHub Apps). The health check names the missing permission. |
 | `Terraform failed to find workspace` | Bootstrap step 1 wasn't applied, or `TF_CLOUD_ORGANIZATION` is wrong. |
 | `Error acquiring the state lock` | Another run holds the lock. Wait, or unlock it in HCP (workspace > Settings > Locking). |
 | `.terraform.lock.hcl is missing` | Run the `terraform providers lock` command from step 1 and commit the file. |

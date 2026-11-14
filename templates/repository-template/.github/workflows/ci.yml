@@ -1,0 +1,52 @@
+# Starter CI from the platform template. Replace the "Build and test" step with
+# this repository's build and tests, and keep the job name: tier-1 and tier-2
+# branch rules require a passing check called build-and-test.
+#
+# The token is read-only; a job that needs more asks in its own permissions
+# block. Actions are pinned to a full commit SHA, as the org requires, and
+# Dependabot proposes updates.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build and test
+        run: echo "Replace this step with this repository's build and tests."
+
+  # Fails a pull request that adds a dependency with a known high or critical
+  # vulnerability. Off until an org owner creates the org Actions variable
+  # CI_DEPENDENCY_REVIEW with the value true, which switches it on in every
+  # repository at once. Private repositories also need GitHub Code Security.
+  dependency-review:
+    name: dependency-review
+    if: github.event_name == 'pull_request' && vars.CI_DEPENDENCY_REVIEW == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high

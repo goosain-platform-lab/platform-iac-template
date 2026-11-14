@@ -1,0 +1,77 @@
+name: platform-health
+
+# Every morning: is the platform itself healthy? terraform-drift asks whether
+# GitHub still matches the code. This checks what Terraform can't see: org
+# settings the provider can't manage (two-factor authentication, member
+# privileges), whether both Apps still hold the permissions the pipeline needs,
+# this repository's environments, rules and CODEOWNERS, and the last runs.
+#
+# It only reads GitHub, as the reader App and with this workflow's read-only
+# token. Its one write is the platform-health issue: opened when something
+# needs attention, rewritten every run, closed once everything passes.
+# Expectations: scripts/platform-health.json. Explained in docs/health.md.
+
+on:
+  schedule:
+    - cron: "41 4 * * *" # 06:41 SAST daily, after the weekday drift check
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-health
+  cancel-in-progress: false
+
+jobs:
+  health:
+    name: health
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve each environment's org
+        id: orgs
+        run: |
+          set -euo pipefail
+          for environment in sandbox prod; do
+            org="$(sed -nE 's/^[[:space:]]*github_org[[:space:]]*=[[:space:]]*"([^"]+)".*$/\1/p' "environments/${environment}.tfvars")"
+            [[ -n "$org" ]] || { echo "::error::github_org is not set in environments/${environment}.tfvars"; exit 1; }
+            echo "${environment}=${org}" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Reader App token (sandbox)
+        id: sandbox-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.GH_APP_READER_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_READER_PRIVATE_KEY }}
+          owner: ${{ steps.orgs.outputs.sandbox }}
+
+      - name: Reader App token (prod)
+        id: prod-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.GH_APP_READER_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_READER_PRIVATE_KEY }}
+          owner: ${{ steps.orgs.outputs.prod }}
+
+      - name: Check, report, and open or close the issue
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          SANDBOX_ORG: ${{ steps.orgs.outputs.sandbox }}
+          SANDBOX_TOKEN: ${{ steps.sandbox-token.outputs.token }}
+          PROD_ORG: ${{ steps.orgs.outputs.prod }}
+          PROD_TOKEN: ${{ steps.prod-token.outputs.token }}
+          READER_SLUG: ${{ steps.prod-token.outputs.app-slug }}
+        with:
+          script: |
+            const health = require('./scripts/platform-health.js');
+            await health.main({ github, context, core, getOctokit });

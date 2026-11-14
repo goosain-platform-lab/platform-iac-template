@@ -4,6 +4,14 @@ resource "github_team" "this" {
   name        = each.key
   description = each.value.description
   privacy     = each.value.privacy
+
+  lifecycle {
+    # Deleting a team removes its members, its repository access and every
+    # CODEOWNERS rule that names it. Taking a team out of config must not do
+    # that: retire it with a removed block (docs/controls.md) and delete it in
+    # GitHub on purpose, if at all.
+    prevent_destroy = true
+  }
 }
 
 # Who may use the repository that holds this code. Terraform manages the access,
