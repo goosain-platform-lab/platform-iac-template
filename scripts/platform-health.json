@@ -1,0 +1,93 @@
+{
+  "description": "What the daily platform health check expects to find. Changing this file changes what is reported, never what is in GitHub. See docs/health.md.",
+  "organization": {
+    "settings": [
+      {
+        "field": "two_factor_requirement_enabled",
+        "expected": true,
+        "severity": "fail",
+        "fix": "Settings > Authentication security > Require two-factor authentication. GitHub has no API to set it."
+      },
+      {
+        "field": "members_can_delete_repositories",
+        "expected": false,
+        "severity": "warn",
+        "fix": "Settings > Member privileges > Repository deletion and transfer: untick it. GitHub has no API to set it."
+      },
+      {
+        "field": "members_can_change_repo_visibility",
+        "expected": false,
+        "severity": "warn",
+        "fix": "Settings > Member privileges > Repository visibility change: untick it. GitHub has no API to set it."
+      },
+      {
+        "field": "deploy_keys_enabled_for_repositories",
+        "expected": false,
+        "severity": "warn",
+        "optional": true,
+        "fix": "Settings > Member privileges > Deploy keys: Disabled. Use a GitHub App instead. Disabling it disables every existing deploy key, so check repositories first."
+      }
+    ],
+    "actions": [
+      {
+        "path": "/orgs/{org}/actions/permissions/fork-pr-contributor-approval",
+        "field": "approval_policy",
+        "expected": "all_external_contributors",
+        "severity": "warn",
+        "optional": true,
+        "fix": "Settings > Actions > General > Approval for running fork pull request workflows: require approval for all external contributors."
+      },
+      {
+        "path": "/orgs/{org}/actions/permissions/self-hosted-runners",
+        "field": "enabled_repositories",
+        "expected": "none",
+        "severity": "warn",
+        "optional": true,
+        "fix": "Settings > Actions > Runners: allow no repository to use self-hosted runners. The platform runs on GitHub-hosted runners only."
+      }
+    ]
+  },
+  "apps": {
+    "reader": {
+      "permissions": {
+        "administration": "read",
+        "metadata": "read",
+        "organization_administration": "read",
+        "members": "read",
+        "organization_custom_properties": "read"
+      }
+    },
+    "writer": {
+      "permissions": {
+        "administration": "write",
+        "contents": "read",
+        "metadata": "read",
+        "repository_custom_properties": "write",
+        "organization_administration": "write",
+        "members": "write",
+        "organization_custom_properties": "admin"
+      }
+    }
+  },
+  "classification": {
+    "property": "criticality",
+    "exclude": [".github"]
+  },
+  "platformRepository": {
+    "environments": [
+      { "name": "sandbox", "branches": ["main"], "reviewers": false, "allowAdminBypass": true },
+      { "name": "prod", "branches": ["main"], "reviewers": true, "allowAdminBypass": true }
+    ],
+    "mainBranch": {
+      "branch": "main",
+      "rules": ["deletion", "non_fast_forward", "pull_request", "required_status_checks"],
+      "codeOwnerReview": true,
+      "checks": ["checks", "plan (sandbox)", "plan (prod)"]
+    },
+    "workflows": [
+      { "file": "terraform-apply.yml", "branch": "main", "waitingHours": 24 },
+      { "file": "terraform-drift.yml", "branch": "main" }
+    ],
+    "openIssueLabels": ["drift"]
+  }
+}
