@@ -1,0 +1,6 @@
+{
+  "name": "Platform starter CI",
+  "description": "Build and test on every pull request and every push to the default branch, with a read-only token. Reports the build-and-test check that tier-1 and tier-2 branch rules require.",
+  "iconName": "octicon shield-check",
+  "categories": ["Automation"]
+}

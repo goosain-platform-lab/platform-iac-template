@@ -65,8 +65,20 @@ jobs:
       - name: Policy tests (prod config)
         run: terraform test -no-color -var-file=environments/prod.tfvars
 
-      - name: Every action used here is allowed by the org policy
+      - name: Every action used here or in templates/ is allowed by the org policy
         run: bash scripts/check-actions-allowlist.sh
+
+      - name: The org's starter workflow matches the template's CI
+        run: |
+          set -euo pipefail
+          # From "name:" on, the two copies differ only in the starter
+          # workflow's $default-branch placeholder.
+          if ! diff -u \
+              <(sed -n '/^name:/,$p' templates/repository-template/.github/workflows/ci.yml) \
+              <(sed -n '/^name:/,$p' templates/dotgithub/workflow-templates/ci.yml | sed 's/\$default-branch/main/'); then
+            echo "::error::templates/dotgithub/workflow-templates/ci.yml and templates/repository-template/.github/workflows/ci.yml have drifted apart. Make the same change in both."
+            exit 1
+          fi
 
   plan:
     name: plan (${{ matrix.environment }})

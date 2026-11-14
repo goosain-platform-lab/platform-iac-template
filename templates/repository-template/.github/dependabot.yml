@@ -1,0 +1,15 @@
+# Dependabot version updates. Keeps the SHA-pinned actions in .github/workflows
+# current. Add an entry for each package ecosystem this repository uses, e.g.
+# nuget, npm, pip, maven or docker:
+# https://docs.github.com/code-security/dependabot/working-with-dependabot/dependabot-options-reference
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps(actions)"

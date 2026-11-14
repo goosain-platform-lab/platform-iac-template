@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/{{ORGANIZATION}}/.github/blob/main/SECURITY.md
+    about: Never in an issue. Report it privately, as the security policy describes.
+  - name: Get help
+    url: https://github.com/{{ORGANIZATION}}/.github/blob/main/SUPPORT.md
+    about: New repositories, access, and other platform questions.

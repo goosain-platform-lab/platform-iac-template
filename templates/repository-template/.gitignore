@@ -1,0 +1,62 @@
+# Secrets and local settings. Never commit these: keep secrets in a vault or in
+# GitHub environment secrets.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.publishsettings
+secrets.json
+local.settings.json
+appsettings.*.local.json
+
+# Operating systems and editors
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.idea/
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+TestResults/
+
+# Node.js
+node_modules/
+npm-debug.log*
+dist/
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Java
+target/
+*.class
+.gradle/
+build/
+
+# Terraform and Bicep
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+
+# Logs and temporary files
+*.log
+*.tmp
