@@ -190,6 +190,42 @@ repositories = {
     }
   }
 
+  terraform-azurerm-ai-stt = {
+    description = "Terraform module: secretless real-time speech-to-text and translation workload on Azure"
+    template    = "repository-template"
+    topics      = ["terraform", "terraform-module", "azure", "speech-to-text", "secretless"]
+    properties = {
+      criticality            = "tier-3"
+      data-classification    = "public"
+      contains-personal-data = "no"
+      technical-owner        = "platform-owners"
+    }
+  }
+
+  terraform-azurerm-ai-stt-batch = {
+    description = "Terraform module: secretless speech batch pipeline (Service Bus, Functions, SQL, Azure OpenAI) on Azure"
+    template    = "repository-template"
+    topics      = ["terraform", "terraform-module", "azure", "speech-to-text", "secretless"]
+    properties = {
+      criticality            = "tier-3"
+      data-classification    = "public"
+      contains-personal-data = "no"
+      technical-owner        = "platform-owners"
+    }
+  }
+
+  ai-landing-zone-lab = {
+    description = "Azure AI application landing zone in Terraform: governed private spoke hosting RAG and speech workloads"
+    template    = "repository-template"
+    topics      = ["terraform", "azure", "landing-zone", "azure-openai", "secretless"]
+    properties = {
+      criticality            = "tier-3"
+      data-classification    = "public"
+      contains-personal-data = "no"
+      technical-owner        = "platform-owners"
+    }
+  }
+
   repository-template = {
     description = "Starting point for new repositories. Its files are published from templates/ in the platform repository; change them there"
     topics      = ["platform", "template"]
