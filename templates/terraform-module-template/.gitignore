@@ -1,0 +1,26 @@
+# Terraform working files
+.terraform/
+.terraform.lock.hcl.bak
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfplan
+tfplan
+
+# Variable files can hold environment-specific values: keep only the examples
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Local overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,99 @@
+# Terraform CI from the platform template. Static checks and tests only: plans
+# and applies run in HCP Terraform, so this workflow needs no cloud credentials.
+#
+# build-and-test: fmt; init and validate in the root and in every folder under
+# examples/ and modules/; tflint; terraform test (mocked providers) in the root
+# and in every module that has a tests/ folder. Keep the job name: the org's
+# branch rules require a check called build-and-test.
+# security-scan: Checkov, report-only until its findings are triaged.
+#
+# The token is read-only. Actions are pinned to full commit SHAs, as the org
+# requires, and Dependabot proposes updates.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.17.2"
+          terraform_wrapper: false
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive
+
+      - name: terraform validate
+        run: |
+          set -euo pipefail
+          dirs="."
+          for d in examples/*/ modules/*/; do [ -d "$d" ] && dirs="$dirs ${d%/}"; done
+          for dir in $dirs; do
+            echo "::group::validate $dir"
+            terraform -chdir="$dir" init -backend=false -input=false
+            terraform -chdir="$dir" validate
+            echo "::endgroup::"
+          done
+
+      - uses: terraform-linters/setup-tflint@6ffdbaa3be476b3431f7275c26966ef32ff60337 # v6.3.2
+
+      - name: tflint
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tflint --init
+          tflint --recursive --format compact
+
+      # Each module's tests sit in its own tests/ folder (the root's and every
+      # modules/<name>/), so each runs with that module's own providers.
+      - name: terraform test
+        run: |
+          set -euo pipefail
+          found=false
+          for dir in . modules/*/; do
+            dir="${dir%/}"
+            [ -d "$dir/tests" ] || continue
+            found=true
+            echo "::group::test $dir"
+            terraform -chdir="$dir" test
+            echo "::endgroup::"
+          done
+          $found || echo "No tests/ folder: nothing to run."
+
+  security-scan:
+    name: security-scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      # Report-only for now: drop --soft-fail once the findings are triaged.
+      - name: checkov
+        run: |
+          python -m pip install --quiet "checkov==3.4.5"
+          checkov --directory . --framework terraform --compact --quiet --soft-fail

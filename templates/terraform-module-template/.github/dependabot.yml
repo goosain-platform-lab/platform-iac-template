@@ -1,0 +1,24 @@
+# Dependabot version updates: the SHA-pinned actions in .github/workflows, and
+# the Terraform providers and modules in every directory that declares them.
+# https://docs.github.com/code-security/dependabot/working-with-dependabot/dependabot-options-reference
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps(actions)"
+
+  - package-ecosystem: terraform
+    directories: ["/", "/examples/*", "/modules/*"]
+    schedule:
+      interval: weekly
+    groups:
+      terraform:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps(terraform)"

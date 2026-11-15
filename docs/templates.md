@@ -1,12 +1,13 @@
 # Templates
 
-Two repositories give every new repository a good start. Their files live
+Three repositories give every new repository a good start. Their files live
 in [`templates/`](../templates), are changed by pull request like everything
 else, and reach GitHub when an org owner publishes them.
 
 | Folder | Published to | What it gives |
 |---|---|---|
 | `templates/repository-template/` | `repository-template`, a template repository Terraform creates | CI that reports the `build-and-test` check, CODEOWNERS naming the lead developers, Dependabot for Actions, a `.gitignore` |
+| `templates/terraform-module-template/` | `terraform-module-template`, a template repository Terraform creates | Terraform CI (fmt, validate in the root, `examples/*` and `modules/*`, tflint, `terraform test`, Checkov) that reports `build-and-test`, CODEOWNERS naming the platform owners, Dependabot for Actions and Terraform, tflint config, a `.gitignore` |
 | `templates/dotgithub/` | the org's `.github` repository | The default security policy, contributing guide, support page, issue forms, pull request template and starter workflow, for every repository without its own. **Switched off** until its two contacts are filled in |
 
 ## Why a script and not the pipeline
@@ -71,6 +72,10 @@ The security policy has to name a real way to report a vulnerability, so
 
 ## Create a repository from the template
 
+Pick the template by what the repository holds: `repository-template` for an
+application (the lead developers approve its changes), `terraform-module-template`
+for Terraform (the platform owners approve its changes).
+
 The template must be published first; a repository created from an empty
 template starts with only its README. Then add the repository with `template`
 set, in `platform.auto.tfvars`:
@@ -89,6 +94,10 @@ claims-api = {
 }
 ```
 
+A Terraform repository also needs `team_access = { platform-owners = "maintain" }`:
+a team named in CODEOWNERS counts only if it has write access, and the platform
+owners have no default grant.
+
 Terraform creates it as a copy of the template's files, with its tier's branch
 rules from the first commit. `template` only matters when the repository is
 created: setting it on an existing repository changes nothing.
@@ -104,7 +113,7 @@ permission (see [setup](setup.md#4-two-github-apps-reader-and-writer)).
 2. After merging, publish to the sandbox, merge its pull request, then publish
    to production.
 
-Don't edit `repository-template` or `.github` directly in GitHub: the next
+Don't edit `repository-template`, `terraform-module-template` or `.github` directly in GitHub: the next
 publish proposes undoing it.
 
 ## When something is wrong

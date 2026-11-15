@@ -64,6 +64,8 @@ teams = {
 
 # The role each team gets on every managed repository (GitHub UI names).
 # platform-owners has no standing grant: its members are org Owners already.
+# Terraform repositories give it maintain with team_access, because GitHub
+# counts a code-owner team's approval only when the team itself can write.
 default_team_access = {
   architects      = "read"
   lead-developers = "maintain"
@@ -164,8 +166,10 @@ tier_policies = {
 }
 
 # --- Repositories ------------------------------------------------------------
-# New repositories: set template = "repository-template" so they start with CI,
-# CODEOWNERS and Dependabot (see templates/ and docs/templates.md).
+# New repositories start from a template (see templates/ and docs/templates.md):
+#   repository-template        applications: lead developers are the code owners
+#   terraform-module-template  Terraform: platform owners are the code owners, so
+#                              give them a role with team_access, as below
 
 repositories = {
   terraform-azurerm-ai-stt = {
@@ -178,6 +182,8 @@ repositories = {
       contains-personal-data = "no"
       technical-owner        = "platform-owners"
     }
+    # Platform owners are the code owners and approve every change.
+    team_access = { platform-owners = "maintain" }
   }
 
   terraform-azurerm-ai-stt-batch = {
@@ -190,6 +196,8 @@ repositories = {
       contains-personal-data = "no"
       technical-owner        = "platform-owners"
     }
+    # Platform owners are the code owners and approve every change.
+    team_access = { platform-owners = "maintain" }
   }
 
   ai-landing-zone-lab = {
@@ -202,6 +210,8 @@ repositories = {
       contains-personal-data = "no"
       technical-owner        = "platform-owners"
     }
+    # Platform owners are the code owners and approve every change.
+    team_access = { platform-owners = "maintain" }
   }
 
   terraform-azurerm-aks = {
@@ -214,6 +224,8 @@ repositories = {
       contains-personal-data = "no"
       technical-owner        = "platform-owners"
     }
+    # Platform owners are the code owners and approve every change.
+    team_access = { platform-owners = "maintain" }
   }
 
   repository-template = {
@@ -226,5 +238,18 @@ repositories = {
       contains-personal-data = "no"
       technical-owner        = "platform-owners"
     }
+  }
+
+  terraform-module-template = {
+    description = "Starting point for Terraform repositories, code-owned by the platform owners. Its files are published from templates/ in the platform repository; change them there"
+    topics      = ["platform", "template", "terraform"]
+    is_template = true
+    properties = {
+      criticality            = "tier-3"
+      data-classification    = "public"
+      contains-personal-data = "no"
+      technical-owner        = "platform-owners"
+    }
+    team_access = { platform-owners = "maintain" }
   }
 }

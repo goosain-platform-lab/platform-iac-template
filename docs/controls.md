@@ -81,7 +81,8 @@ less; to need less, change its tier.
 | Dependabot alerts and security updates | Known-vulnerable dependencies are flagged and patched | Repo > Security |
 | Removing a repository archives it | Terraform never deletes code. The plan says "destroy"; the provider archives instead | `archive_on_destroy = true`, tested |
 | Team access from one matrix, no standing admin | The same access everywhere; admin needs an explicit, reviewed exception | Grant a team admin: the tests fail |
-| New repositories start from the template | CI, CODEOWNERS and Dependabot are there from the first commit | `template = "repository-template"`; [templates.md](templates.md) |
+| New repositories start from the template | CI, CODEOWNERS and Dependabot are there from the first commit | `template = "repository-template"`, or `"terraform-module-template"` for Terraform; [templates.md](templates.md) |
+| Platform owners approve every Terraform change | Code owner review in every tier, with CODEOWNERS naming `platform-owners` in Terraform repositories | `templates/terraform-module-template/.github/CODEOWNERS`; `team_access` on each Terraform repository |
 
 ## Nothing is deleted
 
