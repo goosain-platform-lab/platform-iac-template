@@ -228,6 +228,20 @@ repositories = {
     team_access = { platform-owners = "maintain" }
   }
 
+  terraform-azurerm-web-app = {
+    description = "Terraform module: two-tier Azure web app (front end and API) with Key Vault references, no basic auth, and a deploy identity limited to its own sites and main branch"
+    template    = "terraform-module-template"
+    topics      = ["terraform", "terraform-module", "azure", "app-service", "github-actions", "secretless"]
+    properties = {
+      criticality            = "tier-3"
+      data-classification    = "public"
+      contains-personal-data = "no"
+      technical-owner        = "platform-owners"
+    }
+    # Platform owners are the code owners and approve every change.
+    team_access = { platform-owners = "maintain" }
+  }
+
   repository-template = {
     description = "Starting point for new repositories. Its files are published from templates/ in the platform repository; change them there"
     topics      = ["platform", "template"]
