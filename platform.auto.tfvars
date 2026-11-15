@@ -168,28 +168,6 @@ tier_policies = {
 # CODEOWNERS and Dependabot (see templates/ and docs/templates.md).
 
 repositories = {
-  demo-api = {
-    description = "Sample API service, managed by the platform baseline"
-    topics      = ["demo", "api"]
-    properties = {
-      criticality            = "tier-3"
-      data-classification    = "public"
-      contains-personal-data = "no"
-      technical-owner        = "lead-developers"
-    }
-  }
-
-  demo-web = {
-    description = "Sample web front end, managed by the platform baseline"
-    topics      = ["demo", "web"]
-    properties = {
-      criticality            = "tier-3"
-      data-classification    = "public"
-      contains-personal-data = "no"
-      technical-owner        = "lead-developers"
-    }
-  }
-
   terraform-azurerm-ai-stt = {
     description = "Terraform module: secretless real-time speech-to-text and translation workload on Azure"
     template    = "repository-template"
