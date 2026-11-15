@@ -1,10 +1,10 @@
 # Terraform CI from the platform template. Static checks and tests only: plans
 # and applies run in HCP Terraform, so this workflow needs no cloud credentials.
 #
-# build-and-test: fmt, then init and validate in the root and in every folder
-# under examples/ and modules/, tflint, and terraform test against mocked
-# providers when tests/ exists. Keep the job name: the org's branch rules
-# require a check called build-and-test.
+# build-and-test: fmt; init and validate in the root and in every folder under
+# examples/ and modules/; tflint; terraform test (mocked providers) in the root
+# and in every module that has a tests/ folder. Keep the job name: the org's
+# branch rules require a check called build-and-test.
 # security-scan: Checkov, report-only until its findings are triaged.
 #
 # The token is read-only. Actions are pinned to full commit SHAs, as the org
@@ -63,13 +63,21 @@ jobs:
           tflint --init
           tflint --recursive --format compact
 
+      # Each module's tests sit in its own tests/ folder (the root's and every
+      # modules/<name>/), so each runs with that module's own providers.
       - name: terraform test
         run: |
-          if [ -d tests ]; then
-            terraform test
-          else
-            echo "No tests/ folder: nothing to run."
-          fi
+          set -euo pipefail
+          found=false
+          for dir in . modules/*/; do
+            dir="${dir%/}"
+            [ -d "$dir/tests" ] || continue
+            found=true
+            echo "::group::test $dir"
+            terraform -chdir="$dir" test
+            echo "::endgroup::"
+          done
+          $found || echo "No tests/ folder: nothing to run."
 
   security-scan:
     name: security-scan
