@@ -2,6 +2,7 @@
   "description": "What scripts/Publish-Templates.ps1 publishes from this folder, and the values it fills in. See docs/templates.md.",
   "values": {
     "CODE_OWNERS_TEAM": "lead-developers",
+    "PLATFORM_OWNERS_TEAM": "platform-owners",
     "SECURITY_CONTACT": "",
     "SUPPORT_CONTACT": ""
   },
@@ -11,6 +12,12 @@
       "source": "repository-template",
       "enabled": true,
       "reason": "The starting point for new repositories: CI that reports the build-and-test check, CODEOWNERS for the lead developers, Dependabot for Actions and a .gitignore."
+    },
+    {
+      "name": "terraform-module-template",
+      "source": "terraform-module-template",
+      "enabled": true,
+      "reason": "The starting point for Terraform repositories: Terraform CI (fmt, validate, tflint, tests, Checkov) that reports the build-and-test check, CODEOWNERS for the platform owners, Dependabot for Actions and Terraform, tflint config and a .gitignore."
     },
     {
       "name": ".github",

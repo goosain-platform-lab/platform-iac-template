@@ -36,7 +36,7 @@
 | Property value | kebab-case, from the property's list | `confidential` | `var.custom_properties` validation |
 | Tier | `tier-<n>`, 1 most critical; `experimental` unprotected | `tier-2` | `tier_policies` must match the tiers |
 | Required check | the job name, kebab-case | `build-and-test` | template CI and `tier_policies` |
-| Template repository | what it seeds | `repository-template` | `var.repositories` validation |
+| Template repository | what it seeds | `repository-template`, `terraform-module-template` | `var.repositories` validation |
 | Template publish branch | `publish-templates-<yyyyMMdd-HHmmss>` | `publish-templates-20261114-093000` | `Publish-Templates.ps1` |
 | HCP workspace | `github-platform-<environment>` | `github-platform-sandbox` | composite action (one place) |
 | GitHub App | `<owner>-platform-<role>` (globally unique) | `acme-platform-reader` | setup guide |

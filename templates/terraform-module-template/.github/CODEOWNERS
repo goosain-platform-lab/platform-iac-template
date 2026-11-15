@@ -1,0 +1,10 @@
+# Every change to a Terraform repository needs a platform owner's approval:
+# GitHub asks the code owners to review every pull request, and the branch
+# rules for every tier require their approval. Application repositories are
+# owned by the lead developers instead (repository-template).
+#
+# Keep one owning team. When a line lists several owners, an approval from any
+# one of them counts, so a second team here could stand in for the first.
+# The team needs write access to count: platform.auto.tfvars gives it
+# team_access on every repository created from this template.
+*       @{{ORGANIZATION}}/{{PLATFORM_OWNERS_TEAM}}

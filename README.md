@@ -40,7 +40,7 @@ flowchart LR
 | Teams | Teams, and each team's role on every repository | `teams.tf` |
 | Classification | The custom property schema, and every repository's values | `custom_properties.tf` |
 | Repositories | Settings, a ruleset built from the repository's tier, secret scanning, Dependabot, team access, creation from the template | `modules/repository/`, `locals.tf` |
-| Templates | The repository template, and the org's default security policy, contributing guide and issue forms | `templates/`, published by `scripts/Publish-Templates.ps1` |
+| Templates | The repository templates (applications, and Terraform code-owned by the platform owners), and the org's default security policy, contributing guide and issue forms | `templates/`, published by `scripts/Publish-Templates.ps1` |
 | Health | Two-factor authentication, member privileges, the Apps' permissions, this repository's own protections, failed runs | `.github/workflows/platform-health.yml` |
 
 Deliberately manual: team membership, org owners, billing and Copilot seats, and
@@ -73,7 +73,7 @@ org owners bypass, through a pull request. The tiers live in `tier_policies` in
 | `*.tf` | The root module, one file per GitHub concept. |
 | `modules/repository/` | One module builds every repository the same way. |
 | `tests/` | Policy tests and guardrails, run against a mocked provider (no credentials needed). |
-| `templates/` | The files published to `repository-template` and to the org's `.github` repository. |
+| `templates/` | The files published to `repository-template`, `terraform-module-template` and the org's `.github` repository. |
 | `.github/workflows/` | `terraform-plan`, `terraform-apply`, `terraform-drift`, `platform-health`. |
 | `.github/actions/terraform-setup/` | Shared job setup: environment to org, App token, Terraform, init. |
 | `scripts/` | Bootstrap and template publishing (PowerShell), the health check and its tests, the CI allow-list check. |
@@ -84,8 +84,9 @@ org owners bypass, through a pull request. The tiers live in `tier_policies` in
 - **Add a repository:** add an entry under `repositories` in
   `platform.auto.tfvars` with its description, its properties (`criticality`,
   `data-classification`, `contains-personal-data`, `technical-owner`) and
-  `template = "repository-template"`. Open a pull request, read both plan
-  comments, merge, then approve prod.
+  `template = "repository-template"` (or `"terraform-module-template"` for
+  Terraform, plus `team_access = { platform-owners = "maintain" }`). Open a pull
+  request, read both plan comments, merge, then approve prod.
 - **Change a repository's tier:** change its `criticality`. Its ruleset follows
   in the same pull request.
 - **Change what a tier requires:** edit `tier_policies`. The plan shows every
